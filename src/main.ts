@@ -11,12 +11,65 @@ import "./leafletWorkaround.ts";
 // Deterministic random number generator
 import luck from "./luck.ts";
 
+/**
+ * --------------------------------------------------------------------------------
+ * 1) FLYWEIGHT + GLOBAL COORDINATES
+ *
+ * Maintain a cache of {i, j} cells so that repeated requests for the same
+ * latitude–longitude pair return the same cell object (Flyweight pattern).
+ *
+ * (multiplying lat/lng by 1e4, then flooring to integer).
+ * --------------------------------------------------------------------------------
+ */
+
+const cellFlyweightCache = new Map<string, { i: number; j: number }>();
+
+/** Converts (lat, lng) to a globally unique cell, using a flyweight cache. */
+function getOrCreateCell(lat: number, lng: number): { i: number; j: number } {
+  const i = Math.floor(lat * 1e4);
+  const j = Math.floor(lng * 1e4);
+  const key = `${i},${j}`;
+  if (!cellFlyweightCache.has(key)) {
+    cellFlyweightCache.set(key, { i, j });
+  }
+  return cellFlyweightCache.get(key)!;
+}
+
+/**
+ * Given global cell coordinates (i, j), figure out its bounding box in lat/lng.
+ */
+function cellToLatLngBounds(i: number, j: number): leaflet.LatLngBounds {
+  return leaflet.latLngBounds([
+    [i / 1e4, j / 1e4],
+    [(i + 1) / 1e4, (j + 1) / 1e4],
+  ]);
+}
+
+/**
+ * --------------------------------------------------------------------------------
+ *
+ * Assign each coin a unique ID based on the cell {i, j} from which it was
+ * spawned.
+ * --------------------------------------------------------------------------------
+ */
+const coinSerialMap = new Map<string, number>();
+
+/** Returns the next available serial number for a coin in the given cell. */
+function getNextCoinSerial(i: number, j: number): number {
+  const key = `${i},${j}`;
+  const nextSerial = coinSerialMap.get(key) ?? 0;
+  coinSerialMap.set(key, nextSerial + 1);
+  return nextSerial;
+}
+
 // Location of our classroom (as identified on Google Maps)
 const OAKES_CLASSROOM = leaflet.latLng(36.98949379578401, -122.06277128548504);
 
+// Convert that lat/lng to our global cell coordinates
+const oakesCell = getOrCreateCell(OAKES_CLASSROOM.lat, OAKES_CLASSROOM.lng);
+
 // Tunable gameplay parameters
 const GAMEPLAY_ZOOM_LEVEL = 19;
-const TILE_DEGREES = 1e-4;
 const NEIGHBORHOOD_SIZE = 8;
 const CACHE_SPAWN_PROBABILITY = 0.1;
 
@@ -49,31 +102,30 @@ let playerPoints = 0;
 const statusPanel = document.querySelector<HTMLDivElement>("#statusPanel")!; // element `statusPanel` is defined in index.html
 statusPanel.innerHTML = "No points yet...";
 
-// Add caches to the map by cell numbers
+/**
+ * Spawns a “cache” (rectangle) at global cell coordinates (i, j).
+ */
 function spawnCache(i: number, j: number) {
-  // Convert cell numbers into lat/lng bounds
-  const origin = OAKES_CLASSROOM;
-  const bounds = leaflet.latLngBounds([
-    [origin.lat + i * TILE_DEGREES, origin.lng + j * TILE_DEGREES],
-    [origin.lat + (i + 1) * TILE_DEGREES, origin.lng + (j + 1) * TILE_DEGREES],
-  ]);
+  // The lat/lng bounds of this cell
+  const bounds = cellToLatLngBounds(i, j);
 
-  // Add a rectangle to the map to represent the cache
+  // Add a rectangle for the cache
   const rect = leaflet.rectangle(bounds);
   rect.addTo(map);
 
   // Handle interactions with the cache
   rect.bindPopup(() => {
-    // Each cache has a random point value, mutable by the player
+    // Random point value for this cache
     let pointValue = Math.floor(luck([i, j, "initialValue"].toString()) * 100);
 
-    // The popup offers a description and button
+    // Create the popup content
     const popupDiv = document.createElement("div");
     popupDiv.innerHTML = `
-                <div>There is a cache here at "${i},${j}". It has value <span id="value">${pointValue}</span>.</div>
-                <button id="poke">poke</button>`;
+      <div>Cache at cell {i=${i}, j=${j}} has value <span id="value">${pointValue}</span>.</div>
+      <button id="poke">poke</button>`;
 
-    // Clicking the button decrements the cache's value and increments the player's points
+    // When "poke" is clicked, we decrement the cache value by 1 and
+    // give 1 point to the player. We also generate a unique coin ID.
     popupDiv
       .querySelector<HTMLButtonElement>("#poke")!
       .addEventListener("click", () => {
@@ -82,18 +134,28 @@ function spawnCache(i: number, j: number) {
           pointValue.toString();
         playerPoints++;
         statusPanel.innerHTML = `${playerPoints} points accumulated`;
+
+        // Generate a new coin ID for the coin being “harvested”
+        const serial = getNextCoinSerial(i, j);
+        const coinId = { i, j, serial };
+        console.log("Player picked up coin:", coinId);
       });
 
     return popupDiv;
   });
 }
 
-// Look around the player's neighborhood for caches to spawn
-for (let i = -NEIGHBORHOOD_SIZE; i < NEIGHBORHOOD_SIZE; i++) {
-  for (let j = -NEIGHBORHOOD_SIZE; j < NEIGHBORHOOD_SIZE; j++) {
-    // If location i,j is lucky enough, spawn a cache!
-    if (luck([i, j].toString()) < CACHE_SPAWN_PROBABILITY) {
-      spawnCache(i, j);
+/**
+ * Loop over the player's “neighborhood” in terms of global cell coordinates.
+ */
+for (let di = -NEIGHBORHOOD_SIZE; di < NEIGHBORHOOD_SIZE; di++) {
+  for (let dj = -NEIGHBORHOOD_SIZE; dj < NEIGHBORHOOD_SIZE; dj++) {
+    const cellI = oakesCell.i + di;
+    const cellJ = oakesCell.j + dj;
+
+    // If luck is under a threshold, spawn a cache
+    if (luck([cellI, cellJ].toString()) < CACHE_SPAWN_PROBABILITY) {
+      spawnCache(cellI, cellJ);
     }
   }
 }
