@@ -62,6 +62,14 @@ function getNextCoinSerial(i: number, j: number): number {
   return nextSerial;
 }
 
+/**
+ * --------------------------------------------------------------------------------
+ *
+ * Gameplay material starting here.
+ * 3. Gameplay setting
+ * --------------------------------------------------------------------------------
+ */
+
 // Location of our classroom (as identified on Google Maps)
 const OAKES_CLASSROOM = leaflet.latLng(36.98949379578401, -122.06277128548504);
 
