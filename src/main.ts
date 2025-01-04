@@ -36,13 +36,27 @@ function getOrCreateCell(lat: number, lng: number): { i: number; j: number } {
 }
 
 /**
- * Given global cell coordinates (i, j), figure out its bounding box in lat/lng.
+ * Each cell is 0.0001 degrees in size.
  */
 function cellToLatLngBounds(i: number, j: number): leaflet.LatLngBounds {
   return leaflet.latLngBounds([
     [i / 1e4, j / 1e4],
     [(i + 1) / 1e4, (j + 1) / 1e4],
   ]);
+}
+
+/**
+ * --------------------------------------------------------------------------------
+ * 2) MEMENTO FOR CACHE STATE
+ *
+ * --------------------------------------------------------------------------------
+ */
+interface CacheMemento {
+  i: number;
+  j: number;
+  pointValue: number; // Current "value" of the cache
+  nextCoinSerial: number; // How many coins have been harvested so far
+  rectangle?: leaflet.Rectangle; // Leaflet rectangle if currently added to the map
 }
 
 /**
