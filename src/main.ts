@@ -244,6 +244,10 @@ function movePlayer(dLat: number, dLng: number) {
   playerLat += dLat;
   playerLng += dLng;
   playerMarker.setLatLng([playerLat, playerLng]);
+
+  // Re-center the map on the new player position:
+  map.panTo([playerLat, playerLng]);
+
   updateVisibleCaches();
 }
 
