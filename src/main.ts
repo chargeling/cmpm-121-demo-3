@@ -102,7 +102,7 @@ const OAKES_CLASSROOM = leaflet.latLng(36.98949379578401, -122.06277128548504);
 const GAMEPLAY_ZOOM_LEVEL = 19;
 const NEIGHBORHOOD_SIZE = 8;
 const CACHE_SPAWN_PROBABILITY = 0.1;
-const MOVEMENT_DELTA = 0.0003; // Degrees to move per arrow click
+const MOVEMENT_DELTA = 0.01; // Degrees to move per arrow click
 
 // Create the map (element with id "map" is defined in index.html)
 const map = leaflet.map(document.getElementById("map")!, {
@@ -243,11 +243,14 @@ function updateVisibleCaches() {
 function movePlayer(dLat: number, dLng: number) {
   playerLat += dLat;
   playerLng += dLng;
+
+  // Update the marker
   playerMarker.setLatLng([playerLat, playerLng]);
 
-  // Re-center the map on the new player position:
+  // Optionally center the map on the new position
   map.panTo([playerLat, playerLng]);
 
+  // Update visible caches
   updateVisibleCaches();
 }
 
@@ -259,27 +262,19 @@ function movePlayer(dLat: number, dLng: number) {
  */
 document
   .querySelector<HTMLButtonElement>("#north")!
-  .addEventListener("click", () => {
-    movePlayer(MOVEMENT_DELTA, 0);
-  });
+  .addEventListener("click", () => movePlayer(MOVEMENT_DELTA, 0));
 
 document
   .querySelector<HTMLButtonElement>("#south")!
-  .addEventListener("click", () => {
-    movePlayer(-MOVEMENT_DELTA, 0);
-  });
+  .addEventListener("click", () => movePlayer(-MOVEMENT_DELTA, 0));
 
 document
   .querySelector<HTMLButtonElement>("#east")!
-  .addEventListener("click", () => {
-    movePlayer(0, MOVEMENT_DELTA);
-  });
+  .addEventListener("click", () => movePlayer(0, MOVEMENT_DELTA));
 
 document
   .querySelector<HTMLButtonElement>("#west")!
-  .addEventListener("click", () => {
-    movePlayer(0, -MOVEMENT_DELTA);
-  });
+  .addEventListener("click", () => movePlayer(0, -MOVEMENT_DELTA));
 
 // "reset" to return to OAKES_CLASSROOM
 document
